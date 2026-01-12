@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, func
 from typing import Optional, List
@@ -190,3 +191,56 @@ async def get_report_video(
             "Content-Type": report.video_mime_type or "video/mp4"
         }
     )
+
+@router.delete("/{report_id}", status_code=204)
+async def delete_report(
+    report_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a bug report permanently"""
+    report = db.query(BugReport).filter(BugReport.id == report_id).first()
+    
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+        
+    # Permission check
+    if current_user.role != UserRole.SUPER_ADMIN:
+        if report.tenant_id != current_user.tenant_id:
+            raise HTTPException(status_code=403, detail="Access denied")
+            
+    db.delete(report)
+    db.commit()
+    return None
+
+class ReportUpdate(BaseModel):
+    description: str | None = None
+    label: List[str] | None = None
+
+@router.put("/{report_id}", response_model=BugReportResponse)
+async def update_report_details(
+    report_id: int,
+    update_data: ReportUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update report description and labels"""
+    report = db.query(BugReport).filter(BugReport.id == report_id).first()
+    
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+        
+    # Permission check
+    if current_user.role != UserRole.SUPER_ADMIN:
+        if report.tenant_id != current_user.tenant_id:
+            raise HTTPException(status_code=403, detail="Access denied")
+            
+    if update_data.description is not None:
+        report.description = update_data.description
+        
+    if update_data.label is not None:
+        report.label = update_data.label
+        
+    db.commit()
+    db.refresh(report)
+    return BugReportResponse.from_orm(report)

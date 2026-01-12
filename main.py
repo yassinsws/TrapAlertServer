@@ -7,6 +7,11 @@ from starlette.middleware.cors import CORSMiddleware
 from db import engine, Base, get_db
 from models import BugReport, Tenant
 import uuid
+import logging
+
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 from transcriber import AiEngine
 
@@ -58,11 +63,13 @@ async def receive_feedback(
     
     # 0. Read video bytes
     video_bytes = await video.read()
+    logger.info(f"DEBUG: Received video bytes: {len(video_bytes)}")
     
     # 1. Compress video if it's large (optional threshold, e.g. 500kb)
     # For now we'll compress everything to ensure consistency
     from video_utils import compress_video
     optimized_video_bytes = compress_video(video_bytes)
+    logger.info(f"DEBUG: Optimized video bytes: {len(optimized_video_bytes)}")
     
     # 2. Seek back to 0 for transcription engine
     await video.seek(0)
@@ -87,10 +94,14 @@ async def receive_feedback(
         video_blob=optimized_video_bytes,
         video_mime_type="video/mp4" # We re-encode to mp4 in utils
     )
+    
+    logger.info(f"DEBUG: Created BugReport with video_blob size: {len(optimized_video_bytes) if optimized_video_bytes else 0}")
 
-    # 4. Save to DB
+    # 5. Save to DB
     db.add(new_report)
     db.commit()
     db.refresh(new_report)
+    
+    logger.info(f"DEBUG: Saved report ID {new_report.id}")
 
     return {"status": "success", "id": new_report.id}

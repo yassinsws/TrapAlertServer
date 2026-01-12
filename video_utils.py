@@ -29,6 +29,7 @@ def compress_video(input_bytes: bytes) -> bytes:
         # -vf "scale='min(1280,iw)':-2": Scale to 720p max width, maintaining aspect ratio
         command = [
             'ffmpeg',
+            '-nostdin',
             '-i', input_path,
             '-vcodec', 'libx264',
             '-crf', '28',
@@ -51,7 +52,8 @@ def compress_video(input_bytes: bytes) -> bytes:
         # Read the compressed file
         with open(output_path, "rb") as f:
             compressed_bytes = f.read()
-
+        
+        logger.info(f"Compression successful: {len(compressed_bytes)} bytes")
         return compressed_bytes
 
     except Exception as e:

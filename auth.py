@@ -118,13 +118,23 @@ def require_role(*allowed_roles: UserRole):
 
 def authenticate_user(email: str, password: str, db: Session) -> Optional[User]:
     """Authenticate a user by email and password"""
-    logger.info(f"Attempting to authenticate user: {email}")
-    user = db.query(User).filter(User.email == email, User.is_active == True).first()
+    email = email.lower().strip()
+    logger.info(f"Attempting to authenticate user: '{email}' (len: {len(email)})")
+    
+    # Try finding user without active filter first for debugging
+    user = db.query(User).filter(User.email == email).first()
+    
     if not user:
-        logger.warning(f"User not found or inactive: {email}")
+        logger.warning(f"User NOT found in DB: '{email}'")
         return None
+        
+    if not user.is_active:
+        logger.warning(f"User found but is INACTIVE: {email}")
+        return None
+        
     if not verify_password(password, user.password_hash):
         logger.warning(f"Password verification failed for user: {email}")
         return None
+        
     logger.info(f"Authentication successful for user: {email}")
     return user

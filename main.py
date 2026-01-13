@@ -105,5 +105,5 @@ async def receive_feedback(
         raise he
     except Exception as e:
         logger.error(f"FATAL ERROR in /feedback: {str(e)}", exc_info=True)
-        # Return a JSON error instead of crashing to keep CORS headers
-        return {"status": "error", "message": "Internal Server Error"}, 500
+        # Raise HTTPException to ensure CORS headers are sent
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")

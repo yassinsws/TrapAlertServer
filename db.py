@@ -11,10 +11,15 @@ if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 if "sqlite" in DATABASE_URL:
+    print("DEBUG: Using local SQLite database")
     engine = create_engine(
         DATABASE_URL, connect_args={"check_same_thread": False}
     )
 else:
+    # Mask password for safety
+    import re
+    masked_url = re.sub(r':([^@]+)@', r':****@', DATABASE_URL)
+    print(f"DEBUG: Connecting to database: {masked_url}")
     engine = create_engine(DATABASE_URL)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)

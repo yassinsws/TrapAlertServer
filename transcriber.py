@@ -38,33 +38,20 @@ class AiEngine:
             logger.error(f"Error generating labels: {e}")
             return "bug, issue"
 
-    async def transcribe(self, file: UploadFile) -> str:
+    async def transcribe_bytes(self, video_bytes: bytes, content_type: str, filename: str) -> str:
         """
-        Transcribes the video/audio file using Gemini 2.5 Flash multimodal capabilities.
+        Transcribes video bytes using Gemini 1.5 Flash multimodal capabilities.
         """
         try:
-            logger.info(f"--- Starting transcription for {file.filename} using Gemini ---")
-            
-            # Read file content
-            # Note: For very large files, we might need to use the File API, 
-            # but for bug report clips, direct byte transfer is usually fine (limit is ~20MB for inline)
-            # Vercel limit is 4.5MB for payload, but here we are processing the file uploaded to FastAPI.
-            # Wait, if we are on Vercel, the whole request body is limited. 
-            # But we are deploying to Vercel, so we must be careful.
-            # Assuming the file is already uploaded to the FastAPI temporary storage mechanism.
-            
-            # Reset cursor to start
-            await file.seek(0)
-            content = await file.read()
+            logger.info(f"--- Starting transcription for {filename} using Gemini ---")
             
             # Create a Part object with the video data
-            # Gemini supports passing bytes directly for audio/video in 'parts'
             prompt = "Transcribe the audio in this video exactly."
             
             response = self.client.models.generate_content(
                 model=self.model_name,
                 contents=[
-                    types.Part.from_bytes(data=content, mime_type=file.content_type or "video/mp4"),
+                    types.Part.from_bytes(data=video_bytes, mime_type=content_type),
                     prompt
                 ]
             )
@@ -74,8 +61,5 @@ class AiEngine:
             return transcript
 
         except Exception as e:
-            logger.error(f"Transcription failed: {e}")
+            logger.error(f"Transcription failed: {e}", exc_info=True)
             return "Transcription failed. Please check the video."
-        finally:
-            # Reset file pointer for subsequent operations (like upload)
-            await file.seek(0)

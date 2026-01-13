@@ -63,19 +63,17 @@ async def receive_feedback(
             logger.warning(f"Invalid tenant API key attempt: {tenantId}")
             raise HTTPException(status_code=401, detail="Invalid tenant API key")
         
-        # 0. Read video bytes
+        # 1. Read video bytes once
         video_bytes = await video.read()
+        logger.info(f"Received video: {len(video_bytes)} bytes, type: {video.content_type}")
         
-        # 1. Upload to Supabase
+        # 2. Upload to Supabase
         from video_utils import upload_video_to_supabase
         video_url = upload_video_to_supabase(video_bytes, video.content_type or "video/webm")
         
-        # 2. Seek back to 0 for transcription engine
-        await video.seek(0)
-        
-        # 3. Transcribe video
+        # 3. Transcribe video (pass bytes and metadata)
         eng = AiEngine()
-        transcript = await eng.transcribe(video) 
+        transcript = await eng.transcribe_bytes(video_bytes, video.content_type or "video/webm", video.filename) 
         
         # 4. Generate labels
         raw_labels = eng.generate_labels(transcript)

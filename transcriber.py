@@ -17,7 +17,7 @@ class AiEngine:
             logger.error("GEMINI_API_KEY not found in environment variables")
         
         self.client = genai.Client(api_key=self.api_key)
-        self.model_name = "gemini-1.5-flash"
+        self.model_name = "gemini-2.5-flash"
 
     def generate_labels(self, description: str) -> str:
         """

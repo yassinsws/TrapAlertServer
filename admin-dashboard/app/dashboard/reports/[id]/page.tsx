@@ -39,6 +39,7 @@ interface BugReport {
     created_at: string;
     metadata_json: string;
     dom_snapshot: string;
+    video_url: string | null;
 }
 
 export default function ReportDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -71,17 +72,11 @@ export default function ReportDetailPage({ params }: { params: Promise<{ id: str
                     label: response.data.label.join(", ")
                 });
 
-                // Fetch video as blob
-                try {
-                    const videoResponse = await axios.get(`/api/reports/${id}/video`, {
-                        headers: { Authorization: `Bearer ${token}` },
-                        responseType: 'blob'
-                    });
-                    const url = URL.createObjectURL(videoResponse.data);
-                    setVideoUrl(url);
-                } catch (vError) {
-                    console.error("No video or access error:", vError);
+                // Use new Cloud URL
+                if (response.data.video_url) {
+                    setVideoUrl(response.data.video_url);
                 }
+
             } catch (error: any) {
                 console.error("Error fetching report:", error);
                 if (error.response?.status === 401) {
@@ -97,9 +92,7 @@ export default function ReportDetailPage({ params }: { params: Promise<{ id: str
         }
 
         return () => {
-            if (videoUrl) {
-                URL.revokeObjectURL(videoUrl);
-            }
+            // Cleanup not strictly needed for strings, but good practice if we revert to blobs
         };
     }, [token, id]);
 

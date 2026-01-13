@@ -76,8 +76,7 @@ class BugReport(Base):
     status = Column(SQLEnum(ReportStatus), default=ReportStatus.NEW)
     synced_to_integration = Column(Boolean, default=False)
     external_ticket_id = Column(String, nullable=True)
-    video_blob = Column(LargeBinary, nullable=True)
-    video_mime_type = Column(String, nullable=True)
+    video_url = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     # Relationships

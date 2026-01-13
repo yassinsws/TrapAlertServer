@@ -179,18 +179,8 @@ async def get_report_video(
         if report.tenant_id != current_user.tenant_id:
             raise HTTPException(status_code=403, detail="Access denied")
             
-    if not report.video_blob:
-        raise HTTPException(status_code=404, detail="No video found for this report")
-        
-    from fastapi.responses import Response
-    return Response(
-        content=report.video_blob,
-        media_type=report.video_mime_type or "video/mp4",
-        headers={
-            "Content-Disposition": f"attachment; filename=report_{report_id}.mp4",
-            "Content-Type": report.video_mime_type or "video/mp4"
-        }
-    )
+    # Video is now accessed via video_url in the report object
+    return None
 
 @router.delete("/{report_id}", status_code=204)
 async def delete_report(

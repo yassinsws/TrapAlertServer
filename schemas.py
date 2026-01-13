@@ -100,6 +100,7 @@ class BugReportResponse(BugReportBase):
     status: ReportStatus
     synced_to_integration: bool
     external_ticket_id: Optional[str]
+    video_url: Optional[str] = None
     created_at: datetime
 
     class Config:

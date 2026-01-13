@@ -1,78 +1,81 @@
 import os
-
-from fastapi import UploadFile
-from google.genai import types
-from google import genai
-from pydantic import BaseModel, Field
-from models import BugReport
-from faster_whisper import WhisperModel
 import logging
+from fastapi import UploadFile
+from google import genai
+from google.genai import types
 from dotenv import load_dotenv
-# Set up the logger
+
+# Set up logging
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO) # Ensures INFO level logs are shown
+logging.basicConfig(level=logging.INFO)
 load_dotenv()
 
 class AiEngine:
     def __init__(self):
-        self.client = genai.Client()
-        self.model_size = "small"
-        self.model = WhisperModel(self.model_size, device="cpu", compute_type="float32")
+        self.api_key = os.environ.get("GEMINI_API_KEY")
+        if not self.api_key:
+            logger.error("GEMINI_API_KEY not found in environment variables")
+        
+        self.client = genai.Client(api_key=self.api_key)
+        self.model_name = "gemini-1.5-flash"
 
-    def generate_labels(self, description):
-        response = self.client.models.generate_content(
-            model="gemini-2.5-flash",
-            config=types.GenerateContentConfig(
-                system_instruction="You are a product manager that want to extract labels for a bug ticket out"
-                                   " of this description."
-                                   " Give back a list of labels that are very specific to this description of the bug"
-                                   " all separated only by a comma in a json schema like: button1, focus, contrast."
-                                   " Here is the description now: "),
-
-            contents=description
-        )
-        return response.text
-
-
-    def stuctured_output(self, model: BaseModel, prompt: str):
-        response = self.client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type= "application/json",
-                response_json_schema= BugReport.model_json_schema() )
-        )
-
-        bug_report = BugReport.model_validate_json(response.text)
-        print(bug_report)
-
-    async def transcribe(self, file: UploadFile):
-        temp_path = f"temp_{file.filename}"
-
-        # Use a chunked write for better reliability
-        with open(temp_path, "wb") as f:
-            while content := await file.read(1024 * 1024):  # 1MB chunks
-                f.write(content)
-
+    def generate_labels(self, description: str) -> str:
+        """
+        Generates a comma-separated list of labels based on the bug report description.
+        """
         try:
-            logger.info(f"--- Starting transcription for {file.filename} ---")
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                config=types.GenerateContentConfig(
+                    system_instruction="You are a product manager analyzing a bug report. "
+                                       "Extract a list of specific, relevant labels (e.g., 'ui', 'contrast', 'button', 'login'). "
+                                       "Return ONLY a comma-separated list of strings. No markdown, no json."
+                ),
+                contents=description
+            )
+            return response.text
+        except Exception as e:
+            logger.error(f"Error generating labels: {e}")
+            return "bug, issue"
 
-            segments, info = self.model.transcribe(temp_path, beam_size=5, vad_filter=True)
+    async def transcribe(self, file: UploadFile) -> str:
+        """
+        Transcribes the video/audio file using Gemini 1.5 Flash multimodal capabilities.
+        """
+        try:
+            logger.info(f"--- Starting transcription for {file.filename} using Gemini ---")
+            
+            # Read file content
+            # Note: For very large files, we might need to use the File API, 
+            # but for bug report clips, direct byte transfer is usually fine (limit is ~20MB for inline)
+            # Vercel limit is 4.5MB for payload, but here we are processing the file uploaded to FastAPI.
+            # Wait, if we are on Vercel, the whole request body is limited. 
+            # But we are deploying to Vercel, so we must be careful.
+            # Assuming the file is already uploaded to the FastAPI temporary storage mechanism.
+            
+            # Reset cursor to start
+            await file.seek(0)
+            content = await file.read()
+            
+            # Create a Part object with the video data
+            # Gemini supports passing bytes directly for audio/video in 'parts'
+            prompt = "Transcribe the audio in this video exactly. If there is no audio, describe what is happening visually in detail."
+            
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=[
+                    types.Part.from_bytes(data=content, mime_type=file.content_type or "video/mp4"),
+                    prompt
+                ]
+            )
+            
+            transcript = response.text
+            logger.info("Transcription complete")
+            return transcript
 
-            full_text = []
-            for segment in segments:
-                # Print just the NEW segment so you can see progress
-                logger.info(f"[Segment]: {segment.text}")
-                full_text.append(segment.text)
-
-            final_transcript = " ".join(full_text).strip()
-
-            return final_transcript
-
+        except Exception as e:
+            logger.error(f"Transcription failed: {e}")
+            return "Transcription failed. Please check the video."
         finally:
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
-                logger.info(f"--- Cleaned up {temp_path} ---")
-
-
-
+            # Reset file pointer for subsequent operations (like upload)
+            await file.seek(0)

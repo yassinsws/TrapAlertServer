@@ -17,7 +17,7 @@ class AiEngine:
             logger.error("GEMINI_API_KEY not found in environment variables")
         
         self.client = genai.Client(api_key=self.api_key)
-        self.model_name = "gemini-1.5-flash"
+        self.model_name = "gemini-2.5-flash"
 
     def generate_labels(self, description: str) -> str:
         """
@@ -40,7 +40,7 @@ class AiEngine:
 
     async def transcribe(self, file: UploadFile) -> str:
         """
-        Transcribes the video/audio file using Gemini 1.5 Flash multimodal capabilities.
+        Transcribes the video/audio file using Gemini 2.5 Flash multimodal capabilities.
         """
         try:
             logger.info(f"--- Starting transcription for {file.filename} using Gemini ---")
@@ -59,7 +59,7 @@ class AiEngine:
             
             # Create a Part object with the video data
             # Gemini supports passing bytes directly for audio/video in 'parts'
-            prompt = "Transcribe the audio in this video exactly. If there is no audio, describe what is happening visually in detail."
+            prompt = "Transcribe the audio in this video exactly."
             
             response = self.client.models.generate_content(
                 model=self.model_name,

@@ -121,7 +121,12 @@ def authenticate_user(email: str, password: str, db: Session) -> Optional[User]:
     email = email.lower().strip()
     logger.info(f"Attempting to authenticate user: '{email}' (len: {len(email)})")
     
-    # Try finding user without active filter first for debugging
+    # DEBUG: List ALL users in DB to see what Vercel sees
+    all_users = db.query(User).all()
+    logger.info(f"DEBUG: Vercel sees {len(all_users)} total users in 'users' table.")
+    for u in all_users:
+        logger.info(f"DEBUG: Found User ID: {u.id}, Email: '{u.email}' (len: {len(u.email)})")
+
     user = db.query(User).filter(User.email == email).first()
     
     if not user:

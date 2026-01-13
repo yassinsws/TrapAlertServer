@@ -118,9 +118,13 @@ def require_role(*allowed_roles: UserRole):
 
 def authenticate_user(email: str, password: str, db: Session) -> Optional[User]:
     """Authenticate a user by email and password"""
+    logger.info(f"Attempting to authenticate user: {email}")
     user = db.query(User).filter(User.email == email, User.is_active == True).first()
     if not user:
+        logger.warning(f"User not found or inactive: {email}")
         return None
     if not verify_password(password, user.password_hash):
+        logger.warning(f"Password verification failed for user: {email}")
         return None
+    logger.info(f"Authentication successful for user: {email}")
     return user

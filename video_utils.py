@@ -23,12 +23,14 @@ def upload_video_to_supabase(video_bytes: bytes, content_type: str = "video/webm
     Returns the public URL of the uploaded video.
     """
     if not supabase:
-        logger.warning("Supabase client not initialized. Skipping upload.")
+        logger.error("Supabase client not initialized. Check SUPABASE_URL and SUPABASE_KEY env vars.")
         return None
 
     try:
         file_name = f"{uuid.uuid4()}.webm"
         bucket_name = "videos"
+        
+        logger.info(f"Uploading video: {file_name} ({len(video_bytes)} bytes)")
 
         # Upload file
         response = supabase.storage.from_(bucket_name).upload(
@@ -36,17 +38,21 @@ def upload_video_to_supabase(video_bytes: bytes, content_type: str = "video/webm
             path=file_name,
             file_options={"content-type": content_type}
         )
+        
+        logger.info(f"Upload response: {response}")
 
         # Get public URL
         public_url_response = supabase.storage.from_(bucket_name).get_public_url(file_name)
         
         # Check if the public URL is wrapped in a response object or is a string
-        # Newer supabase-py might return a string directly or an object
-        if hasattr(public_url_response, 'publicURL'): # Legacy check
-             return public_url_response.publicURL
-        
-        return public_url_response # Use directly if string
+        if hasattr(public_url_response, 'publicURL'):
+             public_url = public_url_response.publicURL
+        else:
+             public_url = public_url_response
+             
+        logger.info(f"Video uploaded successfully: {public_url}")
+        return public_url
 
     except Exception as e:
-        logger.error(f"Failed to upload video to Supabase: {e}")
+        logger.error(f"Failed to upload video to Supabase: {e}", exc_info=True)
         return None

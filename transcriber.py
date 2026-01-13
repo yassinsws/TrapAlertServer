@@ -33,7 +33,7 @@ class AiEngine:
                 ),
                 contents=description
             )
-            return response.text
+            return response.text if response.text else "bug, issue"
         except Exception as e:
             logger.error(f"Error generating labels: {e}")
             return "bug, issue"

@@ -77,6 +77,8 @@ async def receive_feedback(
         
         # 4. Generate labels
         raw_labels = eng.generate_labels(transcript)
+        if not raw_labels:
+            raw_labels = "bug, issue"
         label_list = [item.strip() for item in raw_labels.split(",") if item.strip()]
 
         # 5. Create the bug report

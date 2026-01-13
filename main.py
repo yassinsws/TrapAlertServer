@@ -56,47 +56,54 @@ async def receive_feedback(
     Public endpoint for receiving bug reports from TrapAlert.js SDK
     Authenticates using tenant API key
     """
-    # Verify tenant API key
-    tenant = db.query(Tenant).filter(Tenant.api_key == tenantId, Tenant.is_active == True).first()
-    if not tenant:
-        raise HTTPException(status_code=401, detail="Invalid tenant API key")
-    
-    # 0. Read video bytes
-    video_bytes = await video.read()
-    
-    # 1. Upload to Supabase (replaces local compression)
-    from video_utils import upload_video_to_supabase
-    video_url = upload_video_to_supabase(video_bytes, video.content_type or "video/webm")
-    
-    # 2. Seek back to 0 for transcription engine
-    await video.seek(0)
-    
-    # 3. Transcribe video
-    eng = AiEngine()
-    transcript = await eng.transcribe(video) 
-    
-    # 3. Generate labels
-    raw_labels = eng.generate_labels(transcript)
-    label_list = [item.strip() for item in raw_labels.split(",")]
+    try:
+        # Verify tenant API key
+        tenant = db.query(Tenant).filter(Tenant.api_key == tenantId, Tenant.is_active == True).first()
+        if not tenant:
+            logger.warning(f"Invalid tenant API key attempt: {tenantId}")
+            raise HTTPException(status_code=401, detail="Invalid tenant API key")
+        
+        # 0. Read video bytes
+        video_bytes = await video.read()
+        
+        # 1. Upload to Supabase
+        from video_utils import upload_video_to_supabase
+        video_url = upload_video_to_supabase(video_bytes, video.content_type or "video/webm")
+        
+        # 2. Seek back to 0 for transcription engine
+        await video.seek(0)
+        
+        # 3. Transcribe video
+        eng = AiEngine()
+        transcript = await eng.transcribe(video) 
+        
+        # 4. Generate labels
+        raw_labels = eng.generate_labels(transcript)
+        label_list = [item.strip() for item in raw_labels.split(",") if item.strip()]
 
-    # 4. Create the bug report
-    new_report = BugReport(
-        tenant_id=tenant.id,
-        description=description or transcript,
-        struggle_score=struggleScore,
-        metadata_json=metadata,
-        dom_snapshot=dom,
-        label=label_list,
-        video_url=video_url,
-    )
-    
-    logger.info(f"DEBUG: Created BugReport with video_url: {video_url}")
+        # 5. Create the bug report
+        new_report = BugReport(
+            tenant_id=tenant.id,
+            description=description or transcript,
+            struggle_score=struggleScore,
+            metadata_json=metadata, # Stored as String
+            dom_snapshot=dom,
+            label=label_list,
+            video_url=video_url,
+        )
+        
+        # 6. Save to DB
+        db.add(new_report)
+        db.commit()
+        db.refresh(new_report)
+        
+        logger.info(f"Feedback received and saved: Report ID {new_report.id} for Tenant {tenant.name}")
+        return {"status": "success", "id": new_report.id}
 
-    # 5. Save to DB
-    db.add(new_report)
-    db.commit()
-    db.refresh(new_report)
-    
-    logger.info(f"DEBUG: Saved report ID {new_report.id}")
-
-    return {"status": "success", "id": new_report.id}
+    except HTTPException as he:
+        # Re-raise HTTPExceptions as-is
+        raise he
+    except Exception as e:
+        logger.error(f"FATAL ERROR in /feedback: {str(e)}", exc_info=True)
+        # Return a JSON error instead of crashing to keep CORS headers
+        return {"status": "error", "message": "Internal Server Error"}, 500

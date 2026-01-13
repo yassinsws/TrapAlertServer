@@ -119,27 +119,15 @@ def require_role(*allowed_roles: UserRole):
 def authenticate_user(email: str, password: str, db: Session) -> Optional[User]:
     """Authenticate a user by email and password"""
     email = email.lower().strip()
-    logger.info(f"Attempting to authenticate user: '{email}' (len: {len(email)})")
-    
-    # DEBUG: List ALL users in DB to see what Vercel sees
-    all_users = db.query(User).all()
-    logger.info(f"DEBUG: Vercel sees {len(all_users)} total users in 'users' table.")
-    for u in all_users:
-        logger.info(f"DEBUG: Found User ID: {u.id}, Email: '{u.email}' (len: {len(u.email)})")
-
     user = db.query(User).filter(User.email == email).first()
     
     if not user:
-        logger.warning(f"User NOT found in DB: '{email}'")
         return None
         
     if not user.is_active:
-        logger.warning(f"User found but is INACTIVE: {email}")
         return None
         
     if not verify_password(password, user.password_hash):
-        logger.warning(f"Password verification failed for user: {email}")
         return None
         
-    logger.info(f"Authentication successful for user: {email}")
     return user
